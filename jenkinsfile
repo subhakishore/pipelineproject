@@ -1,0 +1,93 @@
+pipeline {
+    agent any
+
+    environment {
+        // put reusable values here
+        RECIPIENTS = 'you@example.com'   // change or remove if not using email
+        ARTIFACT_DIR = 'artifact'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                echo 'Checking out source...'
+                checkout scm
+            }
+        }
+
+        stage('Prepare') {
+            steps {
+                echo 'Prepare workspace (clean/create dirs)...'
+                sh '''
+                    rm -rf ${ARTIFACT_DIR}
+                    mkdir -p ${ARTIFACT_DIR}
+                    ls -la
+                '''
+            }
+        }
+
+        stage('Build') {
+            steps {
+                echo 'Simulate build step...'
+                // run a small script to represent the build
+                sh '''
+                    chmod +x app/run.sh
+                    ./app/run.sh
+                '''
+            }
+        }
+
+        stage('Test') {
+            steps {
+                echo 'Run unit tests...'
+                sh '''
+                    chmod +x tests/unit_test.sh
+                    ./tests/unit_test.sh
+                '''
+            }
+            post {
+                always {
+                    echo 'Collect test result artifacts if any...'
+                    sh 'ls -la || true'
+                }
+            }
+        }
+
+        stage('Package') {
+            steps {
+                echo 'Package artifact (zip example)...'
+                sh '''
+                    # create a simple artifact to archive
+                    echo "Hello from build ${env.BUILD_NUMBER}" > ${ARTIFACT_DIR}/hello.txt
+                    tar -czf ${ARTIFACT_DIR}/artifact-${env.BUILD_NUMBER}.tar.gz -C ${ARTIFACT_DIR} hello.txt
+                    ls -la ${ARTIFACT_DIR}
+                '''
+            }
+        }
+
+        stage('Archive') {
+            steps {
+                echo 'Archive artifacts in Jenkins'
+                archiveArtifacts artifacts: "${ARTIFACT_DIR}/*.tar.gz", fingerprint: true
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Build SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}"
+            // optional: email if email-ext is configured
+            // emailext to: "${RECIPIENTS}", subject: "SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}", body: "Build succeeded: ${env.BUILD_URL}"
+        }
+        failure {
+            echo "Build FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}"
+            // optional: notify on failure
+            // emailext to: "${RECIPIENTS}", subject: "FAILURE: ${env.JOB_NAME} #${env.BUILD_NUMBER}", body: "Build failed: ${env.BUILD_URL}"
+        }
+        cleanup {
+            echo 'Cleaning workspace...'
+            // optionally clean workspace here
+            // deleteDir()
+        }
+    }
+}
